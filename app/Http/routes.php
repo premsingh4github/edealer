@@ -41,6 +41,8 @@ Route::group(['prefix'=> 'API','middleware'=>'API'],function(){
 
     Route::post('/createStock','StockController@create');
     Route::post('/getStocks','StockController@index');
+    Route::post('transferToVault','StockController@transferToVault');
+    Route::post('transferToDelivery','StockController@transferToDelivery');
 
     Route::post('/creatProduct','ProductController@create');
     Route::post('/getProducts','ProductController@index');
@@ -73,6 +75,9 @@ Route::group(['prefix'=> 'API','middleware'=>'API'],function(){
 
 
     Route::post('/addMarketOrder','StockController@addMarketOrder');
+    Route::group(['middleware'=>'admin'],function(){
+        Route::post('acceptOrder','StockController@acceptOrder');
+    });
 });
 Route::post('/getBranch','BranchController@index');
 Route::post('/connectSocket','SocketController@create');

@@ -45,8 +45,9 @@ class MemberController extends Controller
                    }
                  
                 }
-                $clientStocks = ClientStock::where('memberId',$member->id)->where('status',0)->get();
+                $clientStocks = ClientStock::where('memberId',$member->id)->where('status','<',6)->get();
                 $pending = 0;
+
                 if(count($clientStocks) > 0){
                    foreach ($clientStocks as $clientStock) {
                     $pending += $clientStock->cost;
@@ -71,7 +72,7 @@ class MemberController extends Controller
                              $amount -= $account->amount;
                        }
                     }
-                    $clientStocks = ClientStock::where('memberId',$member->id)->where('status',0)->get();
+                    $clientStocks = ClientStock::where('memberId',$member->id)->where('status','<',5)->get();
                     $pending = 0;
                     if(count($clientStocks) > 0){
                        foreach ($clientStocks as $clientStock) {

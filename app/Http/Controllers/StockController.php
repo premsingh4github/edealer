@@ -337,8 +337,9 @@ class StockController extends Controller
             }
 
             $stock = Stock::where('productTypeId',$request['productTypeId'])->where('branchId',$request['branchId'])->first();
+            $branch = Branch::find($request['branchId']);
             
-            $stock->quantity = AddProduct::where('stockId',$stock->id)->sum('quantity');
+            $stock->quantity = (AddProduct::where('stockId',$stock->id)->where('added',1)->sum('quantity') - AddProduct::where('stockId',$stock->id)->where('added',0)->sum('quantity'));
             if($stock->quantity < ($productType->lot_size * $request['lot'])){
                 $returnData = array(
                             'status' => 'fail',
@@ -350,11 +351,19 @@ class StockController extends Controller
             else{
                 $login = Login::where('remember_token','=',$request->header('token'))->where('status','=','1')->where('login_from','=',$request->ip())->first();
                 $clientStock =  new ClientStock;
+                $clientStock->type = 1;
+                $clientStock->price = 4800;
                 $clientStock->memberId = $login->member_id;
                 $clientStock->stockId = $stock->id;
                 $clientStock->amount = ($productType->lot_size * $request['lot']);
                 $clientStock->status = 0;
-                $clientStock->cost = ($clientStock->amount/10) * 4800;
+                $clientStock->commission = $productType->commision *  $request['lot'];
+                $clientStock->margin = $productType->margin *  $request['lot'];
+                $clientStock->delivery_charge = (($productType->lot_size * $request['lot'])/10) * $branch->delivery_charge;
+                $clientStock->cost = ($clientStock->amount/10) * $clientStock->price;
+                $clientStock->remaining_cost = ($clientStock->cost - $clientStock->margin);
+
+                
                 $date = strtotime("+7 day");
                 $clientStock->delivery_date = date('Y-m-d', $date);
                 $clientStock->ticket = $this->ticket_generate();
@@ -363,7 +372,7 @@ class StockController extends Controller
                 $account->memberId = $login->member_id;
                 $account->addedBy = $login->member_id;
                 $account->type = 0;
-                $account->amount = $clientStock->cost;
+                $account->amount = ($clientStock->margin + $clientStock->commission);
                 $account->ticket = $clientStock->ticket;
                 $account->save();
                 $returnData = array(
@@ -391,36 +400,7 @@ class StockController extends Controller
        }
         try{
             $productType = Product::find($request['productTypeId']);
-
-            // if(($productType->type  == 0) && ($productType->lot_size * $request['lot'] < 25000)){
-            //     $returnData = array(
-            //                 'status' => 'fail',
-            //                 'message' => 'Sorry! Invalid requist. Please try retail symbol.',
-            //                 'code' => '422'
-            //             );
-            //     return Response::json($returnData,200);
-            // }
-            // if(($productType->type  == 1) && ($productType->lot_size * $request['lot'] >= 25000)){
-            //     $returnData = array(
-            //                 'status' => 'fail',
-            //                 'message' => 'Sorry! Invalid requist. Please try wholesale symbol.',
-            //                 'code' => '422'
-            //             );
-            //     return Response::json($returnData,200);
-            // }
-
              $stock = Stock::where('productTypeId',$request['productTypeId'])->where('branchId',$request['branchId'])->first();
-            
-            // $stock->quantity = AddProduct::where('stockId',$stock->id)->sum('quantity');
-            // if($stock->quantity < ($productType->lot_size * $request['lot'])){
-            //     $returnData = array(
-            //                 'status' => 'fail',
-            //                 'message' => 'Sorry! Insufficient stock. Please try low quantity.',
-            //                 'code' => '422'
-            //             );
-            //     return Response::json($returnData,200);
-            // }
-            
                 $login = Login::where('remember_token','=',$request->header('token'))->where('status','=','1')->where('login_from','=',$request->ip())->first();
                 $clientStock =  new LimitOrder;
                 $clientStock->memberId = $login->member_id;
@@ -559,5 +539,161 @@ class StockController extends Controller
                 return Response::json($returnData,200);
         }
         return $login->mtype;        
+    }
+    public function acceptOrder(Request $request){
+      $clientStock = ClientStock::find($request['orderId']);
+      $stock = Stock::find($clientStock->stockId);
+      $login = Login::where('remember_token','=',$request->header('token'))->where('login_from','=',$request->ip())->join('members', 'members.id', '=', 'logins.member_id')->where('logins.status','=','1')->first();
+      $stock->quantity = (AddProduct::where('stockId',$stock->id)->where('added',1)->sum('quantity') - AddProduct::where('stockId',$stock->id)->where('added',0)->sum('quantity'));
+      if($stock->quantity < $clientStock->amount){
+        $returnData = array(
+                            'status' => 'ok',
+                            'code' => '422',
+                            'clientStock' => $clientStock,
+                            'message' => 'Insufficient Stock',
+                        );
+        return Response::json($returnData,422);
+      }
+      if ($request['status'] == 1) {
+        $clientStock->acceptedBy = $login->member_id;
+        $clientStock->status = 1;
+        $clientStock->save();
+        $addProduct = new  AddProduct;
+        $addProduct->stockId = $clientStock->stockId;
+        $addProduct->quantity = $clientStock->amount;
+        $addProduct->addedBy =  $login->member_id;
+        $addProduct->added = 0;
+        $addProduct->ticket = $clientStock->ticket;
+        $addProduct->save();
+        $returnData = array(
+                            'status' => 'ok',
+                            'code' => '200',
+                            'clientStock' => $clientStock,
+                            'addProduct' => $addProduct,
+                        );
+        return Response::json($returnData,200);
+      }
+      if($request['status'] == 0){
+        $clientStock->acceptedBy = $login->member_id;
+        $clientStock->status = 3;
+        $clientStock->save();
+        $account = new Account;
+        $account->ticket = $clientStock->ticket;
+        $account->amount = $clientStock->cost;
+        $account->type = 1;
+        $account->addedBy = $login->member_id;
+        $account->memberId = $clientStock->memberId;
+        $account->save();
+        $returnData = array(
+                            'status' => 'ok',
+                            'code' => '200',
+                            'clientStock' => $clientStock,
+                            'account' => $account,
+                        );
+        return Response::json($returnData,200);
+      }
+      
+
+
+    }
+    public function transferToVault(Request $request){
+      $metaData = MetaData::where('meta_key','server_status')->first();
+      if($metaData['meta_value'] == 0){
+         $errorData = array(
+                     'status' => 'fail',
+                     'message' => 'Sorry! Server is closed. Please try later.',
+                     'code' => '422'
+                 );
+         return Response::json($errorData,422);
+      }
+      $login = Login::where('remember_token','=',$request->header('token'))->where('login_from','=',$request->ip())->join('members', 'members.id', '=', 'logins.member_id')->where('logins.status','=','1')->first();
+      $clientStock = ClientStock::find($request['clientStockId']);
+      $account = new Account;
+      if($account->getAccount($login->member_id) < $clientStock->remaining_cost){
+          $errorData = array(
+                      'status' => 'fail',
+                      'message' => 'Insufficient Balance!',
+                      'code' => '422'
+                  );
+          return Response::json($errorData,422);
+      }
+      if($clientStock->memberId != $login->member_id){
+          $errorData = array(
+                      'status' => 'fail',
+                      'message' => 'Invalid Request!',
+                      'code' => '422'
+                  );
+          return Response::json($errorData,422);
+      }
+      else{
+
+          $clientStock->status = 5;
+          $clientStock->save();
+          $account = new Account;
+          $account->ticket = $clientStock->ticket;
+          $account->amount = $clientStock->remaining_cost;
+          $account->type = 0;
+          $account->addedBy = $login->member_id;
+          $account->memberId = $clientStock->memberId;
+          $account->save();
+          $returnData = array(
+                              'status' => 'ok',
+                              'code' => '200',
+                              'clientStock' => $clientStock,
+                              'account' => $account,
+                          );
+          return Response::json($returnData,200);
+      }
+
+    }
+    public function transferToDelivery(Request $request){
+      $metaData = MetaData::where('meta_key','server_status')->first();
+      if($metaData['meta_value'] == 0){
+         $errorData = array(
+                     'status' => 'fail',
+                     'message' => 'Sorry! Server is closed. Please try later.',
+                     'code' => '422'
+                 );
+         return Response::json($errorData,422);
+      }
+      $login = Login::where('remember_token','=',$request->header('token'))->where('login_from','=',$request->ip())->join('members', 'members.id', '=', 'logins.member_id')->where('logins.status','=','1')->first();
+      $clientStock = ClientStock::find($request['clientStockId']);
+      $account = new Account;
+      if($account->getAccount($login->member_id) < ($clientStock->remaining_cost+$clientStock->delivery_charge)){
+          $errorData = array(
+                      'status' => 'fail',
+                      'message' => 'Insufficient Balance!',
+                      'code' => '422'
+                  );
+          return Response::json($errorData,422);
+      }
+      if($clientStock->memberId != $login->member_id){
+          $errorData = array(
+                      'status' => 'fail',
+                      'message' => 'Invalid Request!',
+                      'code' => '422'
+                  );
+          return Response::json($errorData,422);
+      }
+      else{
+
+          $clientStock->status = 4;
+          $clientStock->save();
+          $account = new Account;
+          $account->ticket = $clientStock->ticket;
+          $account->amount = ($clientStock->remaining_cost + $clientStock->delivery_charge);
+          $account->type = 0;
+          $account->addedBy = $login->member_id;
+          $account->memberId = $clientStock->memberId;
+          $account->save();
+          $returnData = array(
+                              'status' => 'ok',
+                              'code' => '200',
+                              'clientStock' => $clientStock,
+                              'account' => $account,
+                          );
+          return Response::json($returnData,200);
+      }
+
     }
 }
