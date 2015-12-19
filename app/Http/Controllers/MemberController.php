@@ -50,7 +50,19 @@ class MemberController extends Controller
 
                 if(count($clientStocks) > 0){
                    foreach ($clientStocks as $clientStock) {
-                    $pending += $clientStock->cost;
+                    if($clientStock->status == 1){
+                        $pending += $clientStock->margin + $clientStock->commission ;
+                    }
+                    elseif($clientStock->status == 2 || $clientStock->status == 5){
+                        $pending += $clientStock->margin + $clientStock->commission + $clientStock->holding_cost ;
+                    }
+                    elseif($clientStock->status == 4 || $clientStock->status == 6){
+                        $pending += $clientStock->margin + $clientStock->commission + $clientStock->holding_cost + $clientStock->delivery_charge ;
+                    }
+                    else{
+
+                    }
+                    
                    } 
                 }
                 $member->pending = $pending;
@@ -76,8 +88,20 @@ class MemberController extends Controller
                     $pending = 0;
                     if(count($clientStocks) > 0){
                        foreach ($clientStocks as $clientStock) {
-                        $pending += $clientStock->cost;
-                       } 
+                    if($clientStock->status == 1){
+                        $pending += $clientStock->margin + $clientStock->commission ;
+                    }
+                    elseif($clientStock->status == 2 || $clientStock->status == 5){
+                        $pending += $clientStock->margin + $clientStock->commission + $clientStock->holding_cost ;
+                    }
+                    elseif($clientStock->status == 4 || $clientStock->status == 6){
+                        $pending += $clientStock->margin + $clientStock->commission + $clientStock->holding_cost + $clientStock->delivery_charge ;
+                    }
+                    else{
+
+                    }
+                    
+                   }
                     }
                     $member->pending = $pending;
                     $member->amount = $amount;
@@ -541,6 +565,26 @@ class MemberController extends Controller
             return $clientCode;
         }
 
+    }
+    public function changePassword(Request $request){
+        $user = Login::where('remember_token','=',$request->header('token'))->where('login_from','=',$request->ip())->join('members', 'members.id', '=', 'logins.member_id')->where('logins.status','=','1')->first();
+        if(Auth::attempt(['username'=> $user->username,'password' => $request['old']])){
+            $member = Member::find($user->member_id);
+            $member->password = Hash::make($request['new']);
+            //return $member->password;
+            $member->save();
+            $returnData = array(
+                    'status' => 'ok',
+                    'code' =>200
+                );
+            return Response::json($returnData, 200);
+        }
+        else{
+            $returnData = array(
+                    'status' => 'fail'
+                );
+            return Response::json($returnData, 401);
+        }
     }
 
 }

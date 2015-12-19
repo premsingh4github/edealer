@@ -44,6 +44,7 @@ class StockController extends Controller
               $data = $stocks;  
             }
             $clientStocks = ClientStock::all();
+            $clientAccounts = Account::all();
         }
         else{
             $stocks = Stock::orderBy('stockTypeId')->where('stockTypeId',3)->get();
@@ -56,7 +57,8 @@ class StockController extends Controller
            else{
              $data = $stocks;  
            } 
-           $clientStocks = ClientStock::where('memberId',$login->member_id)->get();  
+           $clientStocks = ClientStock::where('memberId',$login->member_id)->get(); 
+           $clientAccounts = Account::where('memberId',$login->member_id)->get(); 
         }
 
              $returnData = array(
@@ -65,6 +67,7 @@ class StockController extends Controller
                     'stockTypes' => $stockTypes,
                     'clientStocks' => $clientStocks,
                     'limitOrders' => $limitOrders,
+                    'clientAccounts' => $clientAccounts,
                     'code' =>200
                 );
                 return $returnData ;
