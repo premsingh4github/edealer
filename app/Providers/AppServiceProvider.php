@@ -11,7 +11,9 @@ class AppServiceProvider extends ServiceProvider {
 	 */
 	public function boot()
 	{
-		//
+		foreach (glob(app_path().'/Helpers/*.php') as $filename){
+			require_once($filename);
+		}
 	}
 
 	/**
@@ -29,6 +31,9 @@ class AppServiceProvider extends ServiceProvider {
 			'Illuminate\Contracts\Auth\Registrar',
 			'App\Services\Registrar'
 		);
+		
+
+
 	}
 
 }

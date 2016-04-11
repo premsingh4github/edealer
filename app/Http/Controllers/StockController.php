@@ -582,7 +582,7 @@ class StockController extends Controller
         $clientStock->save();
         $account = new Account;
         $account->ticket = $clientStock->ticket;
-        $account->amount = $clientStock->cost;
+        $account->amount = $clientStock->commission + $clientStock->margin;
         $account->type = 1;
         $account->addedBy = $login->member_id;
         $account->memberId = $clientStock->memberId;

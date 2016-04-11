@@ -64,6 +64,8 @@ Route::group(['prefix'=> 'API','middleware'=>'API'],function(){
     Route::post('/deleteMember','MemberController@deleteMember');
     Route::post('/changePassword','MemberController@changePassword');
 
+    Route::get('getPrices','AccountController@getPrices');
+
     Route::group(['middleware' => 'Account'],function(){
         Route::post('/addAccount','MemberController@account');
         Route::post('/getAccounts','AccountController@index');
